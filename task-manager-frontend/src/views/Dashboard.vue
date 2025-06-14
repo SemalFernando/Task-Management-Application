@@ -43,7 +43,7 @@
       </nav>
       
       <div class="sidebar-footer">
-        <div class="user-profile">
+        <div class="user-profile" @click="showProfile = true">
           <div class="avatar">
             <img src="https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff" alt="John Doe">
           </div>
@@ -306,6 +306,69 @@
         </div>
       </div>
     </div>
+
+    <!-- Profile Modal -->
+    <div v-if="showProfile" class="modal-overlay" @click.self="showProfile = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>User Profile</h3>
+          <button class="modal-close" @click="showProfile = false">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="profile-content">
+            <div class="avatar-section">
+              <div class="avatar-large">
+                <img src="https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff" alt="John Doe">
+              </div>
+              <button class="btn-upload" @click="triggerAvatarUpload">
+                Change Photo
+                <input type="file" ref="avatarInput" @change="handleAvatarUpload" accept="image/*" hidden>
+              </button>
+            </div>
+
+            <div class="profile-details">
+              <div class="detail-group">
+                <label>Name</label>
+                <div class="detail-value">John Doe</div>
+              </div>
+
+              <div class="detail-group">
+                <label>Email</label>
+                <div class="detail-value">john@example.com</div>
+              </div>
+            </div>
+
+            <form @submit.prevent="changePassword" class="password-form">
+              <h4>Change Password</h4>
+              
+              <div class="form-group">
+                <label>Current Password</label>
+                <input type="password" v-model="password.current" placeholder="Enter current password">
+              </div>
+
+              <div class="form-group">
+                <label>New Password</label>
+                <input type="password" v-model="password.new" placeholder="Enter new password">
+              </div>
+
+              <div class="form-group">
+                <label>Confirm Password</label>
+                <input type="password" v-model="password.confirm" placeholder="Confirm new password">
+              </div>
+
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary" @click="showProfile = false">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -315,12 +378,18 @@ export default {
   data() {
     return {
       showTaskForm: false,
+      showProfile: false,
       editingTask: null,
       currentTask: this.getDefaultTask(),
       filters: {
         category: '',
         status: '',
         priority: ''
+      },
+      password: {
+        current: '',
+        new: '',
+        confirm: ''
       },
       tasks: [
         {
@@ -487,6 +556,23 @@ export default {
     handleLogout() {
       // Implement logout logic
       this.$router.push('/login')
+    },
+    triggerAvatarUpload() {
+      this.$refs.avatarInput.click()
+    },
+    handleAvatarUpload(event) {
+      const file = event.target.files[0]
+      if (file) {
+        // Here you would typically handle the file upload
+        console.log('Avatar file selected:', file.name)
+        // You can add your upload logic here
+      }
+    },
+    changePassword() {
+      // Implement password change logic
+      console.log('Password change requested')
+      this.showProfile = false
+      this.password = { current: '', new: '', confirm: '' }
     }
   }
 }
@@ -1257,5 +1343,83 @@ body {
   .modal {
     margin: 1rem;
   }
+}
+/* Profile Modal Specific Styles */
+.profile-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.avatar-large {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 4px solid #f3f4f6;
+}
+
+.avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.btn-upload {
+  background: #f3f4f6;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 0.875rem;
+}
+
+.btn-upload:hover {
+  background: #e5e7eb;
+}
+
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.detail-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-group label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.detail-value {
+  font-size: 1rem;
+  color: #111827;
+  padding: 0.5rem;
+  background: #f9fafb;
+  border-radius: 0.375rem;
+}
+
+.password-form {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.password-form h4 {
+  font-size: 1.125rem;
+  margin-bottom: 1rem;
+  color: #111827;
 }
 </style>

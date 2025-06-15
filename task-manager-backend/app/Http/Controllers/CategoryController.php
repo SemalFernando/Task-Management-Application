@@ -17,10 +17,12 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|unique:categories,name,NULL,id,user_id,' . auth()->id()
+            'name' => 'required|string|unique:categories,name,NULL,id,user_id,'.auth()->id()
         ]);
 
-        $category = auth()->user()->categories()->create($request->all());
+        $category = auth()->user()->categories()->create([
+            'name' => $request->name
+        ]);
 
         return response()->json([
             'message' => 'Category created successfully',
@@ -28,15 +30,18 @@ class CategoryController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, Category $category)
+    public function update(Request $request, $id)
     {
+        $category = Category::findOrFail($id);
+
+        // This will check the policy
         $this->authorize('update', $category);
 
-        $request->validate([
-            'name' => 'required|string|unique:categories,name,' . $category->id . ',id,user_id,' . auth()->id()
+        $validated = $request->validate([
+            'name' => 'required|string|unique:categories,name,'.$id.',id,user_id,'.auth()->id()
         ]);
 
-        $category->update($request->all());
+        $category->update($validated);
 
         return response()->json([
             'message' => 'Category updated successfully',
@@ -47,7 +52,27 @@ class CategoryController extends Controller
     public function destroy(Category $category)
     {
         $this->authorize('delete', $category);
+
+        // Check if category has tasks first
+        if($category->tasks()->exists()) {
+            return response()->json([
+                'message' => 'Cannot delete category with existing tasks'
+            ], 422);
+        }
+
         $category->delete();
-        return response()->json(['message' => 'Category deleted successfully']);
+
+        return response()->json([
+            'message' => 'Category deleted successfully'
+        ]);
+    }
+
+    public function show(Category $category)
+    {
+        $this->authorize('view', $category);
+
+        return response()->json([
+            'category' => $category->load('tasks')
+        ]);
     }
 }

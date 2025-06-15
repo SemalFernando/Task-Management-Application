@@ -5,24 +5,42 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\UserController;
 
-Route::post('/register', [AuthController::class, 'register']);
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+|
+| Here is where you can register API routes for your application. These
+| routes are loaded by the RouteServiceProvider within a group which
+| is assigned the "api" middleware group. Enjoy building your API!
+|
+*/
+
+// Public routes (no auth required)
 Route::post('/login', [AuthController::class, 'login']);
 
+// Protected routes (require Sanctum token authentication)
 Route::middleware('auth:sanctum')->group(function () {
+    // Authentication
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::post('/user/avatar', [AuthController::class, 'updateAvatar']);
-    Route::post('/user/password', [AuthController::class, 'changePassword']);
-    // Task routes
+
+    // Tasks (full CRUD)
     Route::get('/tasks', [TaskController::class, 'index']);
     Route::post('/tasks', [TaskController::class, 'store']);
-    Route::put('/tasks/{task}', [TaskController::class, 'update']);
-    Route::delete('/tasks/{task}', [TaskController::class, 'destroy']);
+    Route::put('/tasks/{id}', [TaskController::class, 'update']);
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
 
-    // Category routes
+    // Categories
     Route::get('/categories', [CategoryController::class, 'index']);
-    Route::post('/categories', [CategoryController::class, 'store']);
-    Route::get('/categories/{category}', [CategoryController::class, 'show']);
-    Route::put('/categories/{category}', [CategoryController::class, 'update']);
-    Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+
+    // User Profile
+    Route::post('/user/avatar', [UserController::class, 'updateAvatar']);
+    Route::post('/user/password', [UserController::class, 'changePassword']);
+
+    // Optional: Get authenticated user data
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
 });

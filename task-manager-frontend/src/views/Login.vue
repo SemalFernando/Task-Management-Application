@@ -30,11 +30,13 @@
             <input
               type="email"
               id="email"
-              v-model="form.email"
+              v-model.trim="form.email"
               class="form-control"
+              :class="{ 'error-input': errors.email }"
               placeholder="you@example.com"
-              required
+              @blur="validateEmail"
             >
+            <span class="error-text" v-if="errors.email">{{ errors.email }}</span>
           </div>
           
           <div class="form-group">
@@ -42,11 +44,13 @@
             <input
               type="password"
               id="password"
-              v-model="form.password"
+              v-model.trim="form.password"
               class="form-control"
+              :class="{ 'error-input': errors.password }"
               placeholder="••••••••"
-              required
+              @blur="validatePassword"
             >
+            <span class="error-text" v-if="errors.password">{{ errors.password }}</span>
             <div class="remember-forgot">
               <div class="remember-me">
                 <input type="checkbox" id="remember" v-model="form.remember">
@@ -56,9 +60,9 @@
             </div>
           </div>
           
-          <div class="error-message" v-if="error">{{ error }}</div>
+          <div class="error-message" v-if="authError">{{ authError }}</div>
           
-          <button type="submit" class="login-button" :disabled="loading">
+          <button type="submit" class="login-button" :disabled="loading || !isFormValid">
             <span v-if="!loading">Sign in</span>
             <span v-else class="loading-spinner">
               <svg class="spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -102,8 +106,9 @@
 </template>
 
 <script>
+import { mapActions, mapGetters } from 'vuex';
+
 export default {
-  name: 'Login',
   data() {
     return {
       form: {
@@ -111,39 +116,115 @@ export default {
         password: '',
         remember: false
       },
-      loading: false,
-      error: null,
+      errors: {
+        email: '',
+        password: ''
+      },
       showIllustration: true
+    };
+  },
+  computed: {
+    ...mapGetters('auth', ['loading', 'error']),
+    authError() {
+      return this.error;
+    },
+    isFormValid() {
+      return this.form.email && this.form.password && 
+             !this.errors.email && !this.errors.password;
     }
   },
   methods: {
+    ...mapActions('auth', ['login']),
+    
     async handleLogin() {
-      this.loading = true
-      this.error = null
+      if (!this.validateForm()) return;
       
       try {
-        await this.$store.dispatch('auth/login', this.form)
-        this.$router.push('/dashboard')
+        await this.login({
+          email: this.form.email,
+          password: this.form.password,
+          remember: this.form.remember
+        });
+        
+        // Redirect to dashboard or intended route
+        const redirectTo = this.$route.query.redirect || '/dashboard';
+        this.$router.push(redirectTo);
       } catch (error) {
-        this.error = error.response?.data?.message || 'Login failed. Please try again.'
-      } finally {
-        this.loading = false
+        // Error is handled by the store
+        if (error.response && error.response.status === 422) {
+          // Handle validation errors from server
+          const serverErrors = error.response.data.errors;
+          for (const field in serverErrors) {
+            if (this.errors.hasOwnProperty(field)) {
+              this.errors[field] = serverErrors[field][0];
+            }
+          }
+        }
       }
     },
+    
+    validateForm() {
+      let isValid = true;
+      
+      if (!this.form.email) {
+        this.errors.email = 'Email is required';
+        isValid = false;
+      } else if (!this.isValidEmail(this.form.email)) {
+        this.errors.email = 'Please enter a valid email';
+        isValid = false;
+      }
+      
+      if (!this.form.password) {
+        this.errors.password = 'Password is required';
+        isValid = false;
+      } else if (this.form.password.length < 8) {
+        this.errors.password = 'Password must be at least 8 characters';
+        isValid = false;
+      }
+      
+      return isValid;
+    },
+    
+    validateEmail() {
+      if (!this.form.email) {
+        this.errors.email = 'Email is required';
+      } else if (!this.isValidEmail(this.form.email)) {
+        this.errors.email = 'Please enter a valid email';
+      } else {
+        this.errors.email = '';
+      }
+    },
+    
+    validatePassword() {
+      if (!this.form.password) {
+        this.errors.password = 'Password is required';
+      } else if (this.form.password.length < 8) {
+        this.errors.password = 'Password must be at least 8 characters';
+      } else {
+        this.errors.password = '';
+      }
+    },
+    
+    isValidEmail(email) {
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return re.test(email);
+    },
+    
     loginWithGithub() {
-      this.error = 'GitHub login not implemented yet'
+      // Implement GitHub OAuth redirect
+      window.location.href = '/api/auth/github';
     },
+    
     loginWithGoogle() {
-      this.error = 'Google login not implemented yet'
-    },
-    handleImageLoad() {
-      this.showIllustration = true
-    },
-    handleImageError() {
-      this.showIllustration = false
+      // Implement Google OAuth redirect
+      window.location.href = '/api/auth/google';
     }
+  },
+  mounted() {
+    // Clear any existing errors when component mounts
+    this.$store.commit('auth/SET_ERROR', null);
   }
-}
+};
 </script>
 
 <style scoped>
@@ -432,5 +513,16 @@ export default {
   .auth-illustration {
     display: flex;
   }
+}
+
+.error-input {
+  border-color: var(--error) !important;
+}
+
+.error-text {
+  color: var(--error);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  display: block;
 }
 </style>

@@ -373,6 +373,8 @@
 </template>
 
 <script>
+import api from '@/utils/api'; // Make sure you have this import
+
 export default {
   name: 'Dashboard',
   data() {
@@ -391,54 +393,10 @@ export default {
         new: '',
         confirm: ''
       },
-      tasks: [
-        {
-          id: 1,
-          title: 'Complete project proposal',
-          description: 'Finish the client project proposal document',
-          due_date: '2023-06-15',
-          status: 'pending',
-          priority: 'high',
-          category_id: 1,
-          progress: 65
-        },
-        {
-          id: 2,
-          title: 'Team meeting',
-          description: 'Weekly team sync meeting',
-          due_date: '2023-06-10',
-          status: 'completed',
-          priority: 'medium',
-          category_id: 1,
-          progress: 100
-        },
-        {
-          id: 3,
-          title: 'Buy groceries',
-          description: 'Milk, eggs, bread, fruits',
-          due_date: '2023-06-08',
-          status: 'pending',
-          priority: 'low',
-          category_id: 2,
-          progress: 20
-        },
-        {
-          id: 4,
-          title: 'Fix critical bug',
-          description: 'Investigate and fix the production bug',
-          due_date: '2023-06-05',
-          status: 'in_progress',
-          priority: 'high',
-          category_id: 3,
-          progress: 45
-        }
-      ],
-      categories: [
-        { id: 1, name: 'Work', color: '#3b82f6' },
-        { id: 2, name: 'Personal', color: '#10b981' },
-        { id: 3, name: 'Urgent', color: '#ef4444' },
-        { id: 4, name: 'Shopping', color: '#8b5cf6' }
-      ]
+      tasks: [], // Removed dummy data - we'll fetch from API
+      categories: [], // Removed dummy data - we'll fetch from API
+      loading: false,
+      error: null
     }
   },
   computed: {
@@ -466,7 +424,33 @@ export default {
       })
     }
   },
+  async created() {
+    await this.fetchTasks();
+    await this.fetchCategories();
+  },
   methods: {
+    async fetchTasks() {
+      try {
+        this.loading = true;
+        const response = await api.get('/tasks');
+        this.tasks = response.data;
+      } catch (error) {
+        this.error = 'Failed to fetch tasks';
+        if (error.response?.status === 401) {
+          this.handleLogout();
+        }
+      } finally {
+        this.loading = false;
+      }
+    },
+    async fetchCategories() {
+      try {
+        const response = await api.get('/categories');
+        this.categories = response.data;
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+      }
+    },
     getDefaultTask() {
       return {
         id: null,
@@ -475,104 +459,153 @@ export default {
         due_date: new Date().toISOString().split('T')[0],
         status: 'pending',
         priority: 'medium',
-        category_id: 1,
+        category_id: this.categories[0]?.id || 1, // Default to first category if available
         progress: 0
       }
     },
-    toggleTaskStatus(task) {
-      task.status = task.status === 'completed' ? 'pending' : 'completed'
-      task.progress = task.status === 'completed' ? 100 : 0
+    async toggleTaskStatus(task) {
+      try {
+        const newStatus = task.status === 'completed' ? 'pending' : 'completed';
+        const newProgress = newStatus === 'completed' ? 100 : 0;
+        
+        await api.put(`/tasks/${task.id}`, {
+          ...task,
+          status: newStatus,
+          progress: newProgress
+        });
+        
+        // Update local state after successful API call
+        task.status = newStatus;
+        task.progress = newProgress;
+      } catch (error) {
+        console.error('Failed to update task status:', error);
+      }
     },
     editTask(task) {
-      this.editingTask = task
-      this.currentTask = { ...task }
-      this.showTaskForm = true
+      this.editingTask = task;
+      this.currentTask = { ...task };
+      this.showTaskForm = true;
     },
-    saveTask() {
-      if (this.editingTask) {
-        // Update existing task
-        const index = this.tasks.findIndex(t => t.id === this.editingTask.id)
-        if (index !== -1) {
-          this.tasks.splice(index, 1, { ...this.currentTask })
+    async saveTask() {
+      try {
+        if (this.editingTask) {
+          // Update existing task
+          const response = await api.put(`/tasks/${this.editingTask.id}`, this.currentTask);
+          const updatedTask = response.data;
+          
+          // Update local state
+          const index = this.tasks.findIndex(t => t.id === this.editingTask.id);
+          if (index !== -1) {
+            this.tasks.splice(index, 1, updatedTask);
+          }
+        } else {
+          // Create new task
+          const response = await api.post('/tasks', this.currentTask);
+          const newTask = response.data;
+          this.tasks.push(newTask);
         }
-      } else {
-        // Add new task
-        const newId = Math.max(...this.tasks.map(t => t.id), 0) + 1
-        this.tasks.push({
-          ...this.currentTask,
-          id: newId
-        })
+        this.closeModal();
+      } catch (error) {
+        console.error('Failed to save task:', error);
+        if (error.response?.status === 422) {
+          // Handle validation errors if needed
+          alert('Validation error: ' + JSON.stringify(error.response.data.errors));
+        }
       }
-      this.closeModal()
     },
     closeModal() {
-      this.showTaskForm = false
-      this.editingTask = null
-      this.currentTask = this.getDefaultTask()
+      this.showTaskForm = false;
+      this.editingTask = null;
+      this.currentTask = this.getDefaultTask();
     },
-    confirmDeleteTask(task) {
+    async confirmDeleteTask(task) {
       if (confirm(`Are you sure you want to delete "${task.title}"?`)) {
-        this.deleteTask(task.id)
+        await this.deleteTask(task.id);
       }
     },
-    deleteTask(taskId) {
-      this.tasks = this.tasks.filter(task => task.id !== taskId)
+    async deleteTask(taskId) {
+      try {
+        await api.delete(`/tasks/${taskId}`);
+        this.tasks = this.tasks.filter(task => task.id !== taskId);
+      } catch (error) {
+        console.error('Failed to delete task:', error);
+      }
     },
     getCategoryName(categoryId) {
-      const category = this.categories.find(c => c.id === categoryId)
-      return category ? category.name : 'Uncategorized'
+      const category = this.categories.find(c => c.id === categoryId);
+      return category ? category.name : 'Uncategorized';
     },
     getCategoryColor(categoryId) {
-      const category = this.categories.find(c => c.id === categoryId)
-      return category ? category.color : '#9ca3af'
+      const category = this.categories.find(c => c.id === categoryId);
+      return category ? category.color : '#9ca3af';
     },
     getContrastColor(hexColor) {
       // Convert hex to RGB
-      const r = parseInt(hexColor.substr(1, 2), 16)
-      const g = parseInt(hexColor.substr(3, 2), 16)
-      const b = parseInt(hexColor.substr(5, 2), 16)
+      const r = parseInt(hexColor.substr(1, 2), 16);
+      const g = parseInt(hexColor.substr(3, 2), 16);
+      const b = parseInt(hexColor.substr(5, 2), 16);
       
       // Calculate luminance
-      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
       
       // Return black for light colors, white for dark colors
-      return luminance > 0.5 ? '#000000' : '#ffffff'
+      return luminance > 0.5 ? '#000000' : '#ffffff';
     },
     formatDate(dateString) {
-      const options = { year: 'numeric', month: 'short', day: 'numeric' }
-      return new Date(dateString).toLocaleDateString(undefined, options)
+      const options = { year: 'numeric', month: 'short', day: 'numeric' };
+      return new Date(dateString).toLocaleDateString(undefined, options);
     },
     isOverdue(dateString) {
-      return new Date(dateString) < new Date()
+      return new Date(dateString) < new Date();
     },
     getProgressWidth(task) {
-      if (task.status === 'completed') return '100%'
-      return `${task.progress}%`
+      if (task.status === 'completed') return '100%';
+      return `${task.progress}%`;
     },
     getProgressText(task) {
-      if (task.status === 'completed') return 'Completed'
-      return `${task.progress}% complete`
+      if (task.status === 'completed') return 'Completed';
+      return `${task.progress}% complete`;
     },
     handleLogout() {
-      // Implement logout logic
-      this.$router.push('/login')
+      localStorage.removeItem('authToken');
+      this.$store.commit('logout');
+      this.$router.push('/login');
     },
     triggerAvatarUpload() {
-      this.$refs.avatarInput.click()
+      this.$refs.avatarInput.click();
     },
-    handleAvatarUpload(event) {
-      const file = event.target.files[0]
+    async handleAvatarUpload(event) {
+      const file = event.target.files[0];
       if (file) {
-        // Here you would typically handle the file upload
-        console.log('Avatar file selected:', file.name)
-        // You can add your upload logic here
+        try {
+          const formData = new FormData();
+          formData.append('avatar', file);
+          
+          const response = await api.post('/upload-avatar', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+          
+          // Update user avatar in store/local state
+          this.$store.commit('setUser', response.data.user);
+        } catch (error) {
+          console.error('Failed to upload avatar:', error);
+        }
       }
     },
-    changePassword() {
-      // Implement password change logic
-      console.log('Password change requested')
-      this.showProfile = false
-      this.password = { current: '', new: '', confirm: '' }
+    async changePassword() {
+      try {
+        await api.post('/change-password', this.password);
+        alert('Password changed successfully');
+        this.showProfile = false;
+        this.password = { current: '', new: '', confirm: '' };
+      } catch (error) {
+        console.error('Failed to change password:', error);
+        if (error.response?.status === 422) {
+          alert('Validation error: ' + JSON.stringify(error.response.data.errors));
+        }
+      }
     }
   }
 }

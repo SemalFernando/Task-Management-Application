@@ -124,47 +124,36 @@
 </template>
 
 <script>
+import api from '@/utils/api';
+
 export default {
-  name: 'Register',
   data() {
     return {
       form: {
         name: '',
         email: '',
         password: '',
-        password_confirmation: '',
-        terms: false
+        password_confirmation: ''
       },
-      loading: false,
-      error: null,
-      showIllustration: true
+      errors: {}
     }
   },
   methods: {
-    async handleRegister() {
-      this.loading = true
-      this.error = null
-      
-      if (this.form.password !== this.form.password_confirmation) {
-        this.error = 'Passwords do not match'
-        this.loading = false
-        return
-      }
-      
+    async handleSubmit() {
       try {
-        await this.$store.dispatch('auth/register', this.form)
-        this.$router.push('/dashboard')
+        const response = await api.post('/register', this.form);
+        
+        // Store the token and user data
+        localStorage.setItem('authToken', response.data.token);
+        this.$store.commit('setUser', response.data.user);
+        
+        // Redirect to dashboard
+        this.$router.push('/dashboard');
       } catch (error) {
-        this.error = error.response?.data?.message || 'Registration failed. Please try again.'
-      } finally {
-        this.loading = false
+        if (error.response.status === 422) {
+          this.errors = error.response.data.errors;
+        }
       }
-    },
-    registerWithGithub() {
-      this.error = 'GitHub registration not implemented yet'
-    },
-    registerWithGoogle() {
-      this.error = 'Google registration not implemented yet'
     }
   }
 }

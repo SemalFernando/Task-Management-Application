@@ -35,6 +35,7 @@
               placeholder="John Doe"
               required
             >
+            <span class="text-red-500 text-xs" v-if="errors.name">{{ errors.name[0] }}</span>
           </div>
           
           <div class="form-group">
@@ -47,6 +48,7 @@
               placeholder="you@example.com"
               required
             >
+            <span class="text-red-500 text-xs" v-if="errors.email">{{ errors.email[0] }}</span>
           </div>
           
           <div class="form-group">
@@ -60,6 +62,7 @@
               required
             >
             <div class="password-hint">Use at least 8 characters with numbers</div>
+            <span class="text-red-500 text-xs" v-if="errors.password">{{ errors.password[0] }}</span>
           </div>
           
           <div class="form-group">
@@ -77,11 +80,12 @@
           <div class="terms-agreement">
             <input type="checkbox" id="terms" v-model="form.terms" required>
             <label for="terms">I agree to the <a href="#" class="terms-link">Terms</a> and <a href="#" class="terms-link">Privacy Policy</a></label>
+            <span class="text-red-500 text-xs block" v-if="errors.terms">{{ errors.terms[0] }}</span>
           </div>
           
           <div class="error-message" v-if="error">{{ error }}</div>
           
-          <button type="submit" class="btn btn-primary w-full">
+          <button type="submit" class="btn btn-primary w-full" :disabled="loading">
             <span v-if="!loading">Create Account</span>
             <span v-else class="flex items-center justify-center">
               <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -124,39 +128,64 @@
 </template>
 
 <script>
+import { ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useStore } from 'vuex';
 import api from '@/utils/api';
 
 export default {
-  data() {
-    return {
-      form: {
-        name: '',
-        email: '',
-        password: '',
-        password_confirmation: ''
-      },
-      errors: {}
-    }
-  },
-  methods: {
-    async handleSubmit() {
+  setup() {
+    const router = useRouter();
+    const store = useStore();
+    
+    const form = ref({
+      name: '',
+      email: '',
+      password: '',
+      password_confirmation: '',
+      terms: false
+    });
+    
+    const errors = ref({});
+    const error = ref(null);
+    const loading = ref(false);
+    const showIllustration = ref(true);
+
+    const handleRegister = async () => {
+      loading.value = true;
+      error.value = null;
+      errors.value = {};
+      
       try {
-        const response = await api.post('/register', this.form);
+        const response = await api.post('/register', form.value);
         
-        // Store the token and user data
+        // Store token and user data
         localStorage.setItem('authToken', response.data.token);
-        this.$store.commit('setUser', response.data.user);
+        store.commit('setUser', response.data.user);
         
         // Redirect to dashboard
-        this.$router.push('/dashboard');
-      } catch (error) {
-        if (error.response.status === 422) {
-          this.errors = error.response.data.errors;
+        router.push('/dashboard');
+      } catch (err) {
+        if (err.response?.status === 422) {
+          errors.value = err.response.data.errors;
+        } else {
+          error.value = err.response?.data.message || 'Registration failed. Please try again.';
         }
+      } finally {
+        loading.value = false;
       }
-    }
+    };
+
+    return {
+      form,
+      errors,
+      error,
+      loading,
+      showIllustration,
+      handleRegister
+    };
   }
-}
+};
 </script>
 
 <style scoped>
@@ -168,7 +197,7 @@ export default {
 
 .auth-illustration {
   flex: 1;
-  background-color: var(--primary-light);
+  background-color: #f0f7ff;
   display: none;
   align-items: center;
   justify-content: center;
@@ -181,15 +210,16 @@ export default {
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  background-color: #f8fafc;
 }
 
 .auth-form {
   width: 100%;
   max-width: 400px;
   padding: 2.5rem;
-  background-color: var(--white);
+  background-color: white;
   border-radius: 0.5rem;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 /* Typography */
@@ -198,24 +228,52 @@ export default {
   font-weight: 700;
   margin-bottom: 1.5rem;
   text-align: center;
+  color: #1e293b;
 }
 
 .illustration-title {
   font-size: 1.875rem;
   font-weight: 700;
-  color: var(--primary);
+  color: #2563eb;
   margin-bottom: 1rem;
 }
 
 .illustration-text {
-  color: var(--gray);
+  color: #64748b;
   margin-bottom: 2rem;
 }
 
 /* Form Elements */
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.625rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  transition: border-color 0.2s;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
 .password-hint {
   font-size: 0.75rem;
-  color: var(--gray);
+  color: #64748b;
   margin-top: 0.5rem;
 }
 
@@ -224,7 +282,7 @@ export default {
   align-items: center;
   margin: 1.5rem 0;
   font-size: 0.875rem;
-  color: var(--gray);
+  color: #64748b;
 }
 
 .terms-agreement input {
@@ -232,13 +290,39 @@ export default {
 }
 
 .terms-link {
-  color: var(--primary);
+  color: #2563eb;
   text-decoration: none;
   font-weight: 500;
 }
 
 .terms-link:hover {
   text-decoration: underline;
+}
+
+.error-message {
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+/* Buttons */
+.btn-primary {
+  background-color: #2563eb;
+  color: white;
+  padding: 0.625rem 1rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:hover {
+  background-color: #1d4ed8;
+}
+
+.btn-primary:disabled {
+  background-color: #93c5fd;
+  cursor: not-allowed;
 }
 
 /* Divider */
@@ -252,8 +336,8 @@ export default {
   position: relative;
   display: inline-block;
   padding: 0 0.5rem;
-  background-color: var(--white);
-  color: var(--gray);
+  background-color: white;
+  color: #64748b;
   font-size: 0.875rem;
 }
 
@@ -290,8 +374,8 @@ export default {
 }
 
 .social-btn:hover {
-  background-color: var(--primary-light);
-  border-color: var(--primary);
+  background-color: #f0f7ff;
+  border-color: #2563eb;
 }
 
 .social-icon {
@@ -304,12 +388,12 @@ export default {
 .auth-footer {
   margin-top: 1.5rem;
   text-align: center;
-  color: var(--gray);
+  color: #64748b;
   font-size: 0.875rem;
 }
 
 .auth-link {
-  color: var(--primary);
+  color: #2563eb;
   text-decoration: none;
   font-weight: 500;
 }
@@ -334,7 +418,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--gray);
+  color: #64748b;
 }
 
 /* Responsive */

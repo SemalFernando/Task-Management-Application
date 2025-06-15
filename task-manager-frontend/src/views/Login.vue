@@ -106,7 +106,7 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from 'vuex';
+import { mapActions, mapState } from 'vuex';
 
 export default {
   data() {
@@ -124,13 +124,16 @@ export default {
     };
   },
   computed: {
-    ...mapGetters('auth', ['loading', 'error']),
-    authError() {
-      return this.error;
-    },
+    ...mapState('auth', {
+      authLoading: 'loading',
+      authError: 'error'
+    }),
     isFormValid() {
       return this.form.email && this.form.password && 
              !this.errors.email && !this.errors.password;
+    },
+    loading() {
+      return this.authLoading;
     }
   },
   methods: {
@@ -146,13 +149,10 @@ export default {
           remember: this.form.remember
         });
         
-        // Redirect to dashboard or intended route
         const redirectTo = this.$route.query.redirect || '/dashboard';
         this.$router.push(redirectTo);
       } catch (error) {
-        // Error is handled by the store
         if (error.response && error.response.status === 422) {
-          // Handle validation errors from server
           const serverErrors = error.response.data.errors;
           for (const field in serverErrors) {
             if (this.errors.hasOwnProperty(field)) {
@@ -211,17 +211,14 @@ export default {
     },
     
     loginWithGithub() {
-      // Implement GitHub OAuth redirect
       window.location.href = '/api/auth/github';
     },
     
     loginWithGoogle() {
-      // Implement Google OAuth redirect
       window.location.href = '/api/auth/google';
     }
   },
   mounted() {
-    // Clear any existing errors when component mounts
     this.$store.commit('auth/SET_ERROR', null);
   }
 };

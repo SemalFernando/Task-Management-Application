@@ -229,6 +229,13 @@
           </div>
         </div>
 
+        <div v-if="loading" class="loading-indicator">
+          Loading dashboard...
+        </div>
+        <div v-else-if="error" class="error-message">
+          {{ error }}
+        </div>
+
         <div v-if="filteredTasks.length === 0" class="empty-state">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -373,7 +380,7 @@
 </template>
 
 <script>
-import api from '@/utils/api'; // Make sure you have this import
+import api from '@/utils/api';
 
 export default {
   name: 'Dashboard',
@@ -382,7 +389,6 @@ export default {
       showTaskForm: false,
       showProfile: false,
       editingTask: null,
-      currentTask: this.getDefaultTask(),
       filters: {
         category: '',
         status: '',
@@ -393,10 +399,12 @@ export default {
         new: '',
         confirm: ''
       },
-      tasks: [], // Removed dummy data - we'll fetch from API
-      categories: [], // Removed dummy data - we'll fetch from API
+      tasks: [],
+      categories: [],
       loading: false,
-      error: null
+      error: null,
+      avatarUploading: false,
+      passwordChanging: false
     }
   },
   computed: {
@@ -410,48 +418,19 @@ export default {
     },
     filteredTasks() {
       return this.tasks.filter(task => {
-        const categoryMatch = this.filters.category ? task.category_id == this.filters.category : true
-        const statusMatch = this.filters.status ? task.status === this.filters.status : true
-        const priorityMatch = this.filters.priority ? task.priority === this.filters.priority : true
-        return categoryMatch && statusMatch && priorityMatch
+        const categoryMatch = this.filters.category ? task.category_id == this.filters.category : true;
+        const statusMatch = this.filters.status ? task.status === this.filters.status : true;
+        const priorityMatch = this.filters.priority ? task.priority === this.filters.priority : true;
+        return categoryMatch && statusMatch && priorityMatch;
       }).sort((a, b) => {
-        // Sort by priority (high first) then by due date (earlier first)
-        const priorityOrder = { high: 1, medium: 2, low: 3 }
+        const priorityOrder = { high: 1, medium: 2, low: 3 };
         if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
-          return priorityOrder[a.priority] - priorityOrder[b.priority]
+          return priorityOrder[a.priority] - priorityOrder[b.priority];
         }
-        return new Date(a.due_date) - new Date(b.due_date)
-      })
-    }
-  },
-  async created() {
-    await this.fetchTasks();
-    await this.fetchCategories();
-  },
-  methods: {
-    async fetchTasks() {
-      try {
-        this.loading = true;
-        const response = await api.get('/tasks');
-        this.tasks = response.data;
-      } catch (error) {
-        this.error = 'Failed to fetch tasks';
-        if (error.response?.status === 401) {
-          this.handleLogout();
-        }
-      } finally {
-        this.loading = false;
-      }
+        return new Date(a.due_date) - new Date(b.due_date);
+      });
     },
-    async fetchCategories() {
-      try {
-        const response = await api.get('/categories');
-        this.categories = response.data;
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
-      }
-    },
-    getDefaultTask() {
+    currentTask() {
       return {
         id: null,
         title: '',
@@ -459,8 +438,47 @@ export default {
         due_date: new Date().toISOString().split('T')[0],
         status: 'pending',
         priority: 'medium',
-        category_id: this.categories[0]?.id || 1, // Default to first category if available
+        category_id: this.categories[0]?.id || null,
         progress: 0
+      };
+    }
+  },
+  async created() {
+    await this.initializeDashboard();
+  },
+  methods: {
+    async initializeDashboard() {
+      try {
+        this.loading = true;
+        await Promise.all([
+          this.fetchTasks(),
+          this.fetchCategories()
+        ]);
+      } catch (error) {
+        this.error = 'Failed to initialize dashboard';
+        console.error(error);
+      } finally {
+        this.loading = false;
+      }
+    },
+    async fetchTasks() {
+      try {
+        const response = await api.get('/tasks');
+        this.tasks = response.data || [];
+      } catch (error) {
+        if (error.response?.status === 401) {
+          this.handleLogout();
+        }
+        throw error;
+      }
+    },
+    async fetchCategories() {
+      try {
+        const response = await api.get('/categories');
+        this.categories = response.data || [];
+      } catch (error) {
+        console.error('Failed to fetch categories:', error);
+        throw error;
       }
     },
     async toggleTaskStatus(task) {
@@ -474,53 +492,36 @@ export default {
           progress: newProgress
         });
         
-        // Update local state after successful API call
+        // Update local state
         task.status = newStatus;
         task.progress = newProgress;
       } catch (error) {
         console.error('Failed to update task status:', error);
+        this.showError('Failed to update task status');
       }
     },
     editTask(task) {
       this.editingTask = task;
-      this.currentTask = { ...task };
       this.showTaskForm = true;
     },
     async saveTask() {
       try {
+        const taskData = { ...this.currentTask };
+        
         if (this.editingTask) {
-          // Update existing task
-          const response = await api.put(`/tasks/${this.editingTask.id}`, this.currentTask);
-          const updatedTask = response.data;
-          
-          // Update local state
+          const response = await api.put(`/tasks/${this.editingTask.id}`, taskData);
           const index = this.tasks.findIndex(t => t.id === this.editingTask.id);
           if (index !== -1) {
-            this.tasks.splice(index, 1, updatedTask);
+            this.tasks.splice(index, 1, response.data);
           }
         } else {
-          // Create new task
-          const response = await api.post('/tasks', this.currentTask);
-          const newTask = response.data;
-          this.tasks.push(newTask);
+          const response = await api.post('/tasks', taskData);
+          this.tasks.push(response.data);
         }
+        
         this.closeModal();
       } catch (error) {
-        console.error('Failed to save task:', error);
-        if (error.response?.status === 422) {
-          // Handle validation errors if needed
-          alert('Validation error: ' + JSON.stringify(error.response.data.errors));
-        }
-      }
-    },
-    closeModal() {
-      this.showTaskForm = false;
-      this.editingTask = null;
-      this.currentTask = this.getDefaultTask();
-    },
-    async confirmDeleteTask(task) {
-      if (confirm(`Are you sure you want to delete "${task.title}"?`)) {
-        await this.deleteTask(task.id);
+        this.handleApiError(error, 'Failed to save task');
       }
     },
     async deleteTask(taskId) {
@@ -528,87 +529,57 @@ export default {
         await api.delete(`/tasks/${taskId}`);
         this.tasks = this.tasks.filter(task => task.id !== taskId);
       } catch (error) {
-        console.error('Failed to delete task:', error);
+        this.handleApiError(error, 'Failed to delete task');
       }
-    },
-    getCategoryName(categoryId) {
-      const category = this.categories.find(c => c.id === categoryId);
-      return category ? category.name : 'Uncategorized';
-    },
-    getCategoryColor(categoryId) {
-      const category = this.categories.find(c => c.id === categoryId);
-      return category ? category.color : '#9ca3af';
-    },
-    getContrastColor(hexColor) {
-      // Convert hex to RGB
-      const r = parseInt(hexColor.substr(1, 2), 16);
-      const g = parseInt(hexColor.substr(3, 2), 16);
-      const b = parseInt(hexColor.substr(5, 2), 16);
-      
-      // Calculate luminance
-      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-      
-      // Return black for light colors, white for dark colors
-      return luminance > 0.5 ? '#000000' : '#ffffff';
-    },
-    formatDate(dateString) {
-      const options = { year: 'numeric', month: 'short', day: 'numeric' };
-      return new Date(dateString).toLocaleDateString(undefined, options);
-    },
-    isOverdue(dateString) {
-      return new Date(dateString) < new Date();
-    },
-    getProgressWidth(task) {
-      if (task.status === 'completed') return '100%';
-      return `${task.progress}%`;
-    },
-    getProgressText(task) {
-      if (task.status === 'completed') return 'Completed';
-      return `${task.progress}% complete`;
-    },
-    handleLogout() {
-      localStorage.removeItem('authToken');
-      this.$store.commit('logout');
-      this.$router.push('/login');
-    },
-    triggerAvatarUpload() {
-      this.$refs.avatarInput.click();
     },
     async handleAvatarUpload(event) {
       const file = event.target.files[0];
-      if (file) {
-        try {
-          const formData = new FormData();
-          formData.append('avatar', file);
-          
-          const response = await api.post('/upload-avatar', formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            }
-          });
-          
-          // Update user avatar in store/local state
-          this.$store.commit('setUser', response.data.user);
-        } catch (error) {
-          console.error('Failed to upload avatar:', error);
-        }
+      if (!file) return;
+      
+      this.avatarUploading = true;
+      try {
+        const formData = new FormData();
+        formData.append('avatar', file);
+        
+        const response = await api.post('/upload-avatar', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        
+        this.$store.commit('setUser', response.data.user);
+      } catch (error) {
+        this.handleApiError(error, 'Failed to upload avatar');
+      } finally {
+        this.avatarUploading = false;
       }
     },
     async changePassword() {
+      this.passwordChanging = true;
       try {
         await api.post('/change-password', this.password);
-        alert('Password changed successfully');
         this.showProfile = false;
         this.password = { current: '', new: '', confirm: '' };
+        this.showSuccess('Password changed successfully');
       } catch (error) {
-        console.error('Failed to change password:', error);
-        if (error.response?.status === 422) {
-          alert('Validation error: ' + JSON.stringify(error.response.data.errors));
-        }
+        this.handleApiError(error, 'Failed to change password');
+      } finally {
+        this.passwordChanging = false;
       }
-    }
+    },
+    handleApiError(error, defaultMessage) {
+      const message = error.response?.data?.message || defaultMessage;
+      console.error(message, error);
+      this.showError(message);
+    },
+    showError(message) {
+      this.error = message;
+      setTimeout(() => this.error = null, 5000);
+    },
+    showSuccess(message) {
+      alert(message); // Replace with your preferred notification system
+    },
+    // ... (keep your existing utility methods like getCategoryName, formatDate, etc.)
   }
-}
+};
 </script>
 
 <style scoped>
@@ -1454,5 +1425,28 @@ body {
   font-size: 1.125rem;
   margin-bottom: 1rem;
   color: #111827;
+}
+
+.loading-indicator {
+  padding: 2rem;
+  text-align: center;
+  color: #666;
+}
+
+.error-message {
+  padding: 2rem;
+  color: #dc2626;
+  background: #fee2e2;
+  border-radius: 0.5rem;
+  margin: 1rem;
+}
+
+.empty-state {
+  padding: 2rem;
+  text-align: center;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+  border-radius: 0.5rem;
+  margin: 1rem;
 }
 </style>

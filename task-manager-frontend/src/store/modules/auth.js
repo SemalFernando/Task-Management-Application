@@ -4,8 +4,8 @@ export default {
   namespaced: true,
   state: () => ({
     user: null,
-    error: null,
     isAuthenticated: false,
+    error: null,
     loading: false
   }),
   mutations: {
@@ -16,10 +16,12 @@ export default {
     },
     SET_ERROR(state, error) {
       state.error = error
-      state.isAuthenticated = false
     },
-    SET_LOADING(state, isLoading) {
-      state.loading = isLoading
+    SET_LOADING(state, loading) {
+      state.loading = loading
+    },
+    CLEAR_ERROR(state) {
+      state.error = null
     },
     LOGOUT(state) {
       state.user = null
@@ -42,15 +44,10 @@ export default {
         localStorage.setItem('authToken', response.data.token)
         return response.data
       } catch (error) {
-        let errorMessage = 'Registration failed'
-        if (error.response) {
-          if (error.response.status === 422) {
-            errorMessage = error.response.data.message || 'Validation error'
-          } else if (error.response.status === 500) {
-            errorMessage = 'Server error'
-          }
-        }
-        commit('SET_ERROR', errorMessage)
+        const message = error.response?.data?.message || 
+                       error.response?.data?.error ||
+                       'Registration failed'
+        commit('SET_ERROR', message)
         throw error
       } finally {
         commit('SET_LOADING', false)
@@ -69,15 +66,10 @@ export default {
         localStorage.setItem('authToken', response.data.token)
         return response.data
       } catch (error) {
-        let errorMessage = 'Login failed'
-        if (error.response) {
-          if (error.response.status === 401) {
-            errorMessage = 'Invalid credentials'
-          } else if (error.response.status === 422) {
-            errorMessage = 'Validation error'
-          }
-        }
-        commit('SET_ERROR', errorMessage)
+        const message = error.response?.data?.message || 
+                       error.response?.data?.error ||
+                       'Login failed'
+        commit('SET_ERROR', message)
         throw error
       } finally {
         commit('SET_LOADING', false)
@@ -90,11 +82,7 @@ export default {
       
       commit('SET_LOADING', true)
       try {
-        const response = await api.get('/user', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        })
+        const response = await api.get('/user')
         commit('SET_USER', response.data)
       } catch (error) {
         localStorage.removeItem('authToken')
@@ -113,6 +101,7 @@ export default {
     currentUser: state => state.user,
     isAuthenticated: state => state.isAuthenticated,
     authError: state => state.error,
-    isLoading: state => state.loading
+    isLoading: state => state.loading,
+    authError: state => state.error
   }
 }

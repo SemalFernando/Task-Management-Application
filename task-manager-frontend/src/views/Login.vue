@@ -106,7 +106,7 @@
 </template>
 
 <script>
-import { mapActions, mapState } from 'vuex';
+import { mapActions, mapState, mapGetters } from 'vuex';
 
 export default {
   data() {
@@ -125,15 +125,15 @@ export default {
   },
   computed: {
     ...mapState('auth', {
-      authLoading: 'loading',
-      authError: 'error'
+      authError: state => state.error
     }),
+    ...mapGetters('auth', ['isLoading']),
+    
     isFormValid() {
-      return this.form.email && this.form.password && 
-             !this.errors.email && !this.errors.password;
-    },
-    loading() {
-      return this.authLoading;
+      return this.form.email && 
+             this.form.password && 
+             !this.errors.email && 
+             !this.errors.password;
     }
   },
   methods: {
@@ -143,14 +143,16 @@ export default {
       if (!this.validateForm()) return;
       
       try {
-        await this.login({
+        const success = await this.login({
           email: this.form.email,
           password: this.form.password,
           remember: this.form.remember
         });
         
-        const redirectTo = this.$route.query.redirect || '/dashboard';
-        this.$router.push(redirectTo);
+        if (success) {
+          const redirectTo = this.$route.query.redirect || '/dashboard';
+          this.$router.push(redirectTo);
+        }
       } catch (error) {
         if (error.response && error.response.status === 422) {
           const serverErrors = error.response.data.errors;
@@ -166,22 +168,10 @@ export default {
     validateForm() {
       let isValid = true;
       
-      if (!this.form.email) {
-        this.errors.email = 'Email is required';
-        isValid = false;
-      } else if (!this.isValidEmail(this.form.email)) {
-        this.errors.email = 'Please enter a valid email';
-        isValid = false;
-      }
+      this.validateEmail();
+      this.validatePassword();
       
-      if (!this.form.password) {
-        this.errors.password = 'Password is required';
-        isValid = false;
-      } else if (this.form.password.length < 8) {
-        this.errors.password = 'Password must be at least 8 characters';
-        isValid = false;
-      }
-      
+      isValid = !this.errors.email && !this.errors.password;
       return isValid;
     },
     
@@ -219,7 +209,7 @@ export default {
     }
   },
   mounted() {
-    this.$store.commit('auth/SET_ERROR', null);
+    this.$store.commit('auth/CLEAR_ERROR');
   }
 };
 </script>

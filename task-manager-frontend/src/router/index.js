@@ -8,35 +8,39 @@ import Dashboard from '../views/Dashboard.vue'
 const routes = [
   { 
     path: '/', 
-    redirect: '/login' 
+    redirect: '/dashboard' 
   },
   { 
-    path: '/login', 
+    path: '/login',
+    name: 'Login',
     component: Login,
     meta: { 
-      guestOnly: true // Only accessible to non-authenticated users
+      guestOnly: true,
+      title: 'Login'
     } 
   },
   { 
-    path: '/register', 
+    path: '/register',
+    name: 'Register', 
     component: Register,
     meta: { 
-      guestOnly: true // Only accessible to non-authenticated users
+      guestOnly: true,
+      title: 'Register'
     } 
   },
   {
-    path: '/dashboard', 
-    name: 'Dashboard', 
+    path: '/dashboard',
+    name: 'Dashboard',
     component: Dashboard,
     meta: { 
-      requiresAuth: true, // Requires authentication
-      title: 'Task Dashboard' // Example of additional route meta
+      requiresAuth: true,
+      title: 'Task Dashboard'
     }
   },
-  // Add a catch-all route for 404 pages
+  // Simple redirect for unknown routes
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/dashboard' // or create a dedicated NotFound component
+    redirect: '/dashboard'
   }
 ]
 

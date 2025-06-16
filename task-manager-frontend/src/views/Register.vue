@@ -220,6 +220,7 @@ export default {
   background-color: white;
   border-radius: 0.5rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  text-align: center; /* Added this line to center the button */
 }
 
 /* Typography */
@@ -246,6 +247,7 @@ export default {
 /* Form Elements */
 .form-group {
   margin-bottom: 1.25rem;
+  text-align: left; /* Ensure form inputs remain left-aligned */
 }
 
 .form-label {
@@ -314,6 +316,8 @@ export default {
   border-radius: 0.375rem;
   font-weight: 500;
   transition: background-color 0.2s;
+  display: inline-block; /* Ensures button respects text-align center */
+  width: auto; /* Allows button to shrink to content */
 }
 
 .btn-primary:hover {

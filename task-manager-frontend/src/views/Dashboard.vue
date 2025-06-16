@@ -33,23 +33,16 @@
           </svg>
           <span>Categories</span>
         </router-link>
-
-        <router-link to="/calendar" class="nav-item">
-          <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <span>Calendar</span>
-        </router-link>
       </nav>
       
       <div class="sidebar-footer">
         <div class="user-profile" @click="showProfile = true">
           <div class="avatar">
-            <img src="https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff" alt="John Doe">
+            <img :src="userAvatar" :alt="user.name">
           </div>
           <div class="user-info">
-            <span class="user-name">John Doe</span>
-            <span class="user-email">john@example.com</span>
+            <span class="user-name">{{ user.name }}</span>
+            <span class="user-email">{{ user.email }}</span>
           </div>
         </div>
         <button class="logout-btn" @click="handleLogout" title="Logout">
@@ -65,9 +58,9 @@
       <header class="main-header">
         <div>
           <h1 class="page-title">Dashboard</h1>
-          <p class="page-subtitle">Welcome back! Here's what's happening today.</p>
+          <p class="page-subtitle">Welcome back, {{ user.name }}! Here's what's happening today.</p>
         </div>
-        <button class="btn btn-primary" @click="showTaskForm = true">
+        <button class="btn btn-primary" @click="openTaskForm">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
@@ -86,7 +79,6 @@
             </div>
             <h3 class="card-title">Total Tasks</h3>
             <p class="card-value">{{ summary.totalTasks }}</p>
-            <p class="card-change positive">+2 from last week</p>
           </div>
         </div>
         
@@ -99,7 +91,6 @@
             </div>
             <h3 class="card-title">Completed</h3>
             <p class="card-value">{{ summary.completedTasks }}</p>
-            <p class="card-change positive">+1 from last week</p>
           </div>
         </div>
         
@@ -112,7 +103,6 @@
             </div>
             <h3 class="card-title">Pending</h3>
             <p class="card-value">{{ summary.pendingTasks }}</p>
-            <p class="card-change neutral">No change</p>
           </div>
         </div>
         
@@ -125,7 +115,6 @@
             </div>
             <h3 class="card-title">Overdue</h3>
             <p class="card-value">{{ summary.overdueTasks }}</p>
-            <p class="card-change negative">-1 from last week</p>
           </div>
         </div>
       </div>
@@ -137,7 +126,7 @@
           <div class="task-filters">
             <div class="filter-group">
               <label for="category-filter" class="filter-label">Category</label>
-              <select id="category-filter" class="filter-select" v-model="filters.category">
+              <select id="category-filter" class="filter-select" v-model="filters.category" @change="fetchTasks">
                 <option value="">All Categories</option>
                 <option v-for="category in categories" :key="category.id" :value="category.id">
                   {{ category.name }}
@@ -146,7 +135,7 @@
             </div>
             <div class="filter-group">
               <label for="status-filter" class="filter-label">Status</label>
-              <select id="status-filter" class="filter-select" v-model="filters.status">
+              <select id="status-filter" class="filter-select" v-model="filters.status" @change="fetchTasks">
                 <option value="">All Status</option>
                 <option value="pending">Pending</option>
                 <option value="in_progress">In Progress</option>
@@ -155,7 +144,7 @@
             </div>
             <div class="filter-group">
               <label for="priority-filter" class="filter-label">Priority</label>
-              <select id="priority-filter" class="filter-select" v-model="filters.priority">
+              <select id="priority-filter" class="filter-select" v-model="filters.priority" @change="fetchTasks">
                 <option value="">All Priorities</option>
                 <option value="high">High</option>
                 <option value="medium">Medium</option>
@@ -165,89 +154,97 @@
           </div>
         </div>
         
-        <div class="task-list">
-          <div 
-            class="task-item" 
-            v-for="task in filteredTasks" 
-            :key="task.id"
-            :class="{ 
-              'completed': task.status === 'completed',
-              'priority-high': task.priority === 'high',
-              'priority-medium': task.priority === 'medium',
-              'priority-low': task.priority === 'low'
-            }"
-          >
-            <div class="task-checkbox">
-              <input 
-                type="checkbox" 
-                :checked="task.status === 'completed'" 
-                @change="toggleTaskStatus(task)"
-              >
-            </div>
-            <div class="task-content">
-              <div class="task-header">
-                <h3 class="task-title">{{ task.title }}</h3>
-                <div class="task-priority" :class="task.priority">
-                  {{ task.priority }}
-                </div>
-              </div>
-              <p class="task-description">{{ task.description }}</p>
-              <div class="task-meta">
-                <span 
-                  class="task-category" 
-                  :style="{ backgroundColor: getCategoryColor(task.category_id), color: getContrastColor(getCategoryColor(task.category_id)) }"
-                >
-                  {{ getCategoryName(task.category_id) }}
-                </span>
-                <span class="task-due-date" :class="{ 'overdue': isOverdue(task.due_date) && task.status !== 'completed' }">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  {{ formatDate(task.due_date) }}
-                  <span v-if="isOverdue(task.due_date) && task.status !== 'completed'" class="overdue-badge">Overdue</span>
-                </span>
-              </div>
-              <div class="task-progress">
-                <div class="progress-bar">
-                  <div class="progress" :style="{ width: getProgressWidth(task) }"></div>
-                </div>
-                <span class="progress-text">{{ getProgressText(task) }}</span>
-              </div>
-            </div>
-            <div class="task-actions">
-              <button class="action-btn edit" @click="editTask(task)" title="Edit">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-              <button class="action-btn delete" @click="confirmDeleteTask(task)" title="Delete">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
         <div v-if="loading" class="loading-indicator">
-          Loading dashboard...
+          <svg class="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Loading tasks...
         </div>
+        
         <div v-else-if="error" class="error-message">
           {{ error }}
+          <button @click="fetchTasks" class="btn btn-secondary mt-2">Retry</button>
         </div>
+        
+        <div v-else>
+          <div class="task-list">
+            <div 
+              class="task-item" 
+              v-for="task in filteredTasks" 
+              :key="task.id"
+              :class="{ 
+                'completed': task.status === 'completed',
+                'priority-high': task.priority === 'high',
+                'priority-medium': task.priority === 'medium',
+                'priority-low': task.priority === 'low'
+              }"
+            >
+              <div class="task-checkbox">
+                <input 
+                  type="checkbox" 
+                  :checked="task.status === 'completed'" 
+                  @change="toggleTaskStatus(task)"
+                >
+              </div>
+              <div class="task-content">
+                <div class="task-header">
+                  <h3 class="task-title">{{ task.title }}</h3>
+                  <div class="task-priority" :class="task.priority">
+                    {{ task.priority }}
+                  </div>
+                </div>
+                <p class="task-description">{{ task.description }}</p>
+                <div class="task-meta">
+                  <span 
+                    class="task-category" 
+                    :style="{ backgroundColor: getCategoryColor(task.category_id), color: getContrastColor(getCategoryColor(task.category_id)) }"
+                  >
+                    {{ getCategoryName(task.category_id) }}
+                  </span>
+                  <span class="task-due-date" :class="{ 'overdue': isOverdue(task.due_date) && task.status !== 'completed' }">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {{ formatDate(task.due_date) }}
+                    <span v-if="isOverdue(task.due_date) && task.status !== 'completed'" class="overdue-badge">Overdue</span>
+                  </span>
+                </div>
+                <div class="task-progress">
+                  <div class="progress-bar">
+                    <div class="progress" :style="{ width: getProgressWidth(task) }"></div>
+                  </div>
+                  <span class="progress-text">{{ getProgressText(task) }}</span>
+                </div>
+              </div>
+              <div class="task-actions">
+                <button class="action-btn edit" @click="editTask(task)" title="Edit">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button class="action-btn delete" @click="confirmDeleteTask(task)" title="Delete">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
 
-        <div v-if="filteredTasks.length === 0" class="empty-state">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-          <h3>No tasks found</h3>
-          <p>Try adjusting your filters or create a new task</p>
-          <button class="btn btn-primary mt-4" @click="showTaskForm = true">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          <div v-if="filteredTasks.length === 0" class="empty-state">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-            Add Task
-          </button>
+            <h3>No tasks found</h3>
+            <p>Try adjusting your filters or create a new task</p>
+            <button class="btn btn-primary mt-4" @click="openTaskForm">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Add Task
+            </button>
+          </div>
         </div>
       </div>
     </main>
@@ -307,7 +304,18 @@
             </div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" @click="closeModal">Cancel</button>
-              <button type="submit" class="btn btn-primary">{{ editingTask ? 'Update' : 'Save' }} Task</button>
+              <button type="submit" class="btn btn-primary" :disabled="saving">
+                <span v-if="saving">
+                  <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  {{ editingTask ? 'Updating...' : 'Creating...' }}
+                </span>
+                <span v-else>
+                  {{ editingTask ? 'Update' : 'Create' }} Task
+                </span>
+              </button>
             </div>
           </form>
         </div>
@@ -329,7 +337,7 @@
           <div class="profile-content">
             <div class="avatar-section">
               <div class="avatar-large">
-                <img src="https://ui-avatars.com/api/?name=John+Doe&background=3b82f6&color=fff" alt="John Doe">
+                <img :src="userAvatar" :alt="user.name">
               </div>
               <button class="btn-upload" @click="triggerAvatarUpload">
                 Change Photo
@@ -340,12 +348,12 @@
             <div class="profile-details">
               <div class="detail-group">
                 <label>Name</label>
-                <div class="detail-value">John Doe</div>
+                <div class="detail-value">{{ user.name }}</div>
               </div>
 
               <div class="detail-group">
                 <label>Email</label>
-                <div class="detail-value">john@example.com</div>
+                <div class="detail-value">{{ user.email }}</div>
               </div>
             </div>
 
@@ -354,22 +362,31 @@
               
               <div class="form-group">
                 <label>Current Password</label>
-                <input type="password" v-model="password.current" placeholder="Enter current password">
+                <input type="password" v-model="password.current" placeholder="Enter current password" required>
               </div>
 
               <div class="form-group">
                 <label>New Password</label>
-                <input type="password" v-model="password.new" placeholder="Enter new password">
+                <input type="password" v-model="password.new" placeholder="Enter new password" required>
               </div>
 
               <div class="form-group">
                 <label>Confirm Password</label>
-                <input type="password" v-model="password.confirm" placeholder="Confirm new password">
+                <input type="password" v-model="password.confirm" placeholder="Confirm new password" required>
               </div>
 
               <div class="form-actions">
                 <button type="button" class="btn btn-secondary" @click="showProfile = false">Cancel</button>
-                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="submit" class="btn btn-primary" :disabled="passwordChanging">
+                  <span v-if="passwordChanging">
+                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Updating...
+                  </span>
+                  <span v-else>Save Changes</span>
+                </button>
               </div>
             </form>
           </div>
@@ -381,6 +398,7 @@
 
 <script>
 import api from '@/utils/api';
+import { mapState, mapActions } from 'vuex';
 
 export default {
   name: 'Dashboard',
@@ -402,12 +420,14 @@ export default {
       tasks: [],
       categories: [],
       loading: false,
-      error: null,
+      saving: false,
+      passwordChanging: false,
       avatarUploading: false,
-      passwordChanging: false
+      error: null
     }
   },
   computed: {
+    ...mapState('auth', ['user']),
     summary() {
       return {
         totalTasks: this.tasks.length,
@@ -431,22 +451,28 @@ export default {
       });
     },
     currentTask() {
-      return {
-        id: null,
-        title: '',
-        description: '',
-        due_date: new Date().toISOString().split('T')[0],
-        status: 'pending',
-        priority: 'medium',
-        category_id: this.categories[0]?.id || null,
-        progress: 0
-      };
+      return this.editingTask ? 
+        { ...this.editingTask } : 
+        {
+          title: '',
+          description: '',
+          due_date: new Date().toISOString().split('T')[0],
+          status: 'pending',
+          priority: 'medium',
+          category_id: this.categories[0]?.id || null,
+          progress: 0
+        };
+    },
+    userAvatar() {
+      return this.user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(this.user.name)}&background=3b82f6&color=fff`;
     }
   },
   async created() {
     await this.initializeDashboard();
   },
   methods: {
+    ...mapActions('auth', ['logout']),
+    
     async initializeDashboard() {
       try {
         this.loading = true;
@@ -455,32 +481,46 @@ export default {
           this.fetchCategories()
         ]);
       } catch (error) {
-        this.error = 'Failed to initialize dashboard';
-        console.error(error);
+        this.error = this.handleApiError(error, 'Failed to load dashboard data');
       } finally {
         this.loading = false;
       }
     },
+    
     async fetchTasks() {
       try {
-        const response = await api.get('/tasks');
+        this.error = null;
+        const params = {};
+        if (this.filters.category) params.category = this.filters.category;
+        if (this.filters.status) params.status = this.filters.status;
+        if (this.filters.priority) params.priority = this.filters.priority;
+        
+        const response = await api.get('/tasks', { params });
         this.tasks = response.data || [];
       } catch (error) {
         if (error.response?.status === 401) {
           this.handleLogout();
         }
+        this.error = this.handleApiError(error, 'Failed to fetch tasks');
         throw error;
       }
     },
+    
     async fetchCategories() {
       try {
         const response = await api.get('/categories');
         this.categories = response.data || [];
       } catch (error) {
-        console.error('Failed to fetch categories:', error);
+        this.error = this.handleApiError(error, 'Failed to fetch categories');
         throw error;
       }
     },
+    
+    openTaskForm() {
+      this.showTaskForm = true;
+      this.editingTask = null;
+    },
+    
     async toggleTaskStatus(task) {
       try {
         const newStatus = task.status === 'completed' ? 'pending' : 'completed';
@@ -496,16 +536,18 @@ export default {
         task.status = newStatus;
         task.progress = newProgress;
       } catch (error) {
-        console.error('Failed to update task status:', error);
-        this.showError('Failed to update task status');
+        this.error = this.handleApiError(error, 'Failed to update task status');
       }
     },
+    
     editTask(task) {
       this.editingTask = task;
       this.showTaskForm = true;
     },
+    
     async saveTask() {
       try {
+        this.saving = true;
         const taskData = { ...this.currentTask };
         
         if (this.editingTask) {
@@ -516,28 +558,56 @@ export default {
           }
         } else {
           const response = await api.post('/tasks', taskData);
-          this.tasks.push(response.data);
+          this.tasks.unshift(response.data);
         }
         
         this.closeModal();
       } catch (error) {
-        this.handleApiError(error, 'Failed to save task');
+        this.error = this.handleApiError(error, 'Failed to save task');
+      } finally {
+        this.saving = false;
       }
     },
+    
+    confirmDeleteTask(task) {
+      if (confirm(`Are you sure you want to delete "${task.title}"?`)) {
+        this.deleteTask(task.id);
+      }
+    },
+    
     async deleteTask(taskId) {
       try {
         await api.delete(`/tasks/${taskId}`);
         this.tasks = this.tasks.filter(task => task.id !== taskId);
       } catch (error) {
-        this.handleApiError(error, 'Failed to delete task');
+        this.error = this.handleApiError(error, 'Failed to delete task');
       }
     },
+    
+    closeModal() {
+      this.showTaskForm = false;
+      this.editingTask = null;
+    },
+    
+    async handleLogout() {
+      try {
+        await this.logout();
+        this.$router.push('/login');
+      } catch (error) {
+        this.error = this.handleApiError(error, 'Failed to logout');
+      }
+    },
+    
+    triggerAvatarUpload() {
+      this.$refs.avatarInput.click();
+    },
+    
     async handleAvatarUpload(event) {
       const file = event.target.files[0];
       if (!file) return;
       
-      this.avatarUploading = true;
       try {
+        this.avatarUploading = true;
         const formData = new FormData();
         formData.append('avatar', file);
         
@@ -545,39 +615,82 @@ export default {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         
-        this.$store.commit('setUser', response.data.user);
+        // Update user in store
+        this.$store.commit('auth/SET_USER', response.data.user);
       } catch (error) {
-        this.handleApiError(error, 'Failed to upload avatar');
+        this.error = this.handleApiError(error, 'Failed to upload avatar');
       } finally {
         this.avatarUploading = false;
       }
     },
+    
     async changePassword() {
-      this.passwordChanging = true;
+      if (this.password.new !== this.password.confirm) {
+        this.error = 'New passwords do not match';
+        return;
+      }
+      
       try {
+        this.passwordChanging = true;
         await api.post('/change-password', this.password);
         this.showProfile = false;
         this.password = { current: '', new: '', confirm: '' };
-        this.showSuccess('Password changed successfully');
+        this.$toast.success('Password changed successfully');
       } catch (error) {
-        this.handleApiError(error, 'Failed to change password');
+        this.error = this.handleApiError(error, 'Failed to change password');
       } finally {
         this.passwordChanging = false;
       }
     },
+    
     handleApiError(error, defaultMessage) {
       const message = error.response?.data?.message || defaultMessage;
       console.error(message, error);
-      this.showError(message);
+      return message;
     },
-    showError(message) {
-      this.error = message;
-      setTimeout(() => this.error = null, 5000);
+    
+    // Utility methods
+    getCategoryName(categoryId) {
+      const category = this.categories.find(c => c.id === categoryId);
+      return category ? category.name : 'Uncategorized';
     },
-    showSuccess(message) {
-      alert(message); // Replace with your preferred notification system
+    
+    getCategoryColor(categoryId) {
+      const category = this.categories.find(c => c.id === categoryId);
+      return category ? category.color || '#3b82f6' : '#9ca3af';
     },
-    // ... (keep your existing utility methods like getCategoryName, formatDate, etc.)
+    
+    getContrastColor(hexColor) {
+      // Convert hex to RGB
+      const r = parseInt(hexColor.substr(1, 2), 16);
+      const g = parseInt(hexColor.substr(3, 2), 16);
+      const b = parseInt(hexColor.substr(5, 2), 16);
+      
+      // Calculate luminance
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      
+      // Return black for light colors, white for dark colors
+      return luminance > 0.5 ? '#000000' : '#ffffff';
+    },
+    
+    formatDate(dateString) {
+      const options = { year: 'numeric', month: 'short', day: 'numeric' };
+      return new Date(dateString).toLocaleDateString(undefined, options);
+    },
+    
+    isOverdue(dateString) {
+      return new Date(dateString) < new Date();
+    },
+    
+    getProgressWidth(task) {
+      if (task.status === 'completed') return '100%';
+      return `${task.progress}%`;
+    },
+    
+    getProgressText(task) {
+      if (task.status === 'completed') return 'Completed';
+      return `${task.progress}% complete`;
+    }
   }
 };
 </script>

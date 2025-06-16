@@ -39,14 +39,14 @@ export default {
           password: userData.password,
           password_confirmation: userData.password_confirmation
         })
-        
+
         commit('SET_USER', response.data.user)
         localStorage.setItem('authToken', response.data.token)
         return response.data
       } catch (error) {
-        const message = error.response?.data?.message || 
-                       error.response?.data?.error ||
-                       'Registration failed'
+        const message = error.response?.data?.message ||
+          error.response?.data?.error ||
+          'Registration failed'
         commit('SET_ERROR', message)
         throw error
       } finally {
@@ -61,14 +61,14 @@ export default {
           email: credentials.email,
           password: credentials.password
         })
-        
+
         commit('SET_USER', response.data.user)
         localStorage.setItem('authToken', response.data.token)
         return response.data
       } catch (error) {
-        const message = error.response?.data?.message || 
-                       error.response?.data?.error ||
-                       'Login failed'
+        const message = error.response?.data?.message ||
+          error.response?.data?.error ||
+          'Login failed'
         commit('SET_ERROR', message)
         throw error
       } finally {
@@ -79,7 +79,7 @@ export default {
     async checkAuth({ commit }) {
       const token = localStorage.getItem('authToken')
       if (!token) return
-      
+
       commit('SET_LOADING', true)
       try {
         const response = await api.get('/user')
@@ -92,9 +92,35 @@ export default {
       }
     },
 
+    async initializeAuth({ commit }) {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+
+      try {
+        commit('SET_LOADING', true);
+        const response = await api.get('/user');
+        commit('SET_USER', response.data);
+      } catch (error) {
+        localStorage.removeItem('authToken');
+        commit('LOGOUT');
+      } finally {
+        commit('SET_LOADING', false);
+      }
+    },
+
     logout({ commit }) {
-      localStorage.removeItem('authToken')
-      commit('LOGOUT')
+      return new Promise((resolve) => {
+        // Clear token from localStorage
+        localStorage.removeItem('authToken')
+
+        // Clear axios authorization header
+        delete api.defaults.headers.common['Authorization']
+
+        // Reset store state
+        commit('LOGOUT')
+
+        resolve()
+      })
     }
   },
   getters: {

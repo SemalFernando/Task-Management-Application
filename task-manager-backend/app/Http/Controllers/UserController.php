@@ -2,40 +2,64 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ChangePasswordRequest;
+use App\Http\Requests\UploadAvatarRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
-    // Upload user avatar
-    public function updateAvatar(Request $request)
+    public function uploadAvatar(Request $request)
     {
-        $request->validate([
-            'avatar' => 'required|image|max:2048',
-        ]);
+        try {
+            $user = $request->user();
+            $path = $request->file('avatar')->store('avatars', 'public');
 
-        $path = $request->file('avatar')->store('avatars');
-        auth()->user()->update(['avatar_path' => $path]);
+            // Delete old avatar if exists
+            if ($user->avatar) {
+                Storage::disk('public')->delete($user->avatar);
+            }
 
-        return response()->json([
-            'avatar_url' => Storage::url($path)
-        ]);
+            $user->update(['avatar' => $path]);
+
+            return response()->json([
+                'user' => $user->fresh(),
+                'message' => 'Avatar updated successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to upload avatar',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
-    // Change user password
     public function changePassword(Request $request)
     {
-        $request->validate([
-            'current' => 'required|current_password',
-            'new' => 'required|min:8|different:current',
-            'confirm' => 'required|same:new',
-        ]);
+        try {
+            $user = $request->user();
 
-        auth()->user()->update([
-            'password' => Hash::make($request->new)
-        ]);
+            if (!Hash::check($request->current, $user->password)) {
+                return response()->json([
+                    'message' => 'Current password is incorrect'
+                ], 422);
+            }
 
-        return response()->json(['message' => 'Password updated']);
+            $user->update([
+                'password' => Hash::make($request->new)
+            ]);
+
+            return response()->json([
+                'message' => 'Password changed successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to change password',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

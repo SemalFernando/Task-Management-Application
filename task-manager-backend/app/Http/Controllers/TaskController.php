@@ -5,30 +5,30 @@ namespace App\Http\Controllers;
 use App\Models\Task;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 class TaskController extends Controller
 {
-    /**
-     * Display authenticated user's tasks
-     */
+    public function __construct()
+    {
+        $this->middleware('auth:sanctum');
+    }
+
     public function index()
     {
         try {
             return response()->json(
-                Task::where('user_id', auth()->id())
+                Auth::user()->tasks()
                     ->with('category')
                     ->latest()
                     ->get()
             );
         } catch (\Exception $e) {
-            Log::error('Task index error: ' . $e->getMessage());
-            return response()->json(['error' => 'Failed to fetch tasks'], 500);
+            Log::error('Task fetch error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to load tasks'], 500);
         }
     }
 
-    /**
-     * Create a new task
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -40,9 +40,12 @@ class TaskController extends Controller
         ]);
 
         try {
-            $task = Task::create([
-                ...$validated,
-                'user_id' => auth()->id(),
+            $task = Auth::user()->tasks()->create([
+                'title' => $validated['title'],
+                'description' => $validated['description'],
+                'due_date' => $validated['due_date'],
+                'priority' => $validated['priority'],
+                'category_id' => $validated['category_id'],
                 'status' => 'pending',
                 'progress' => 0
             ]);
@@ -50,21 +53,14 @@ class TaskController extends Controller
             return response()->json($task->load('category'), 201);
 
         } catch (\Exception $e) {
-            Log::error('Task creation failed: ' . $e->getMessage());
-            return response()->json(['error' => 'Task creation failed'], 500);
+            Log::error('Task creation error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to create task'], 500);
         }
     }
 
-    /**
-     * Update an existing task
-     */
-    public function update(Request $request, $id)
+    public function update(Request $request, Task $task)
     {
-        $task = auth()->user()->tasks()->findOrFail($id);
-
-        if (!$task) {
-            return response()->json(['error' => 'Task not found'], 404);
-        }
+        $this->authorize('update', $task);
 
         $validated = $request->validate([
             'title' => 'sometimes|string|max:255',
@@ -77,9 +73,8 @@ class TaskController extends Controller
         ]);
 
         try {
-            // Auto-complete when status changes to completed
-            if (isset($validated['status'])) {
-                $validated['progress'] = ($validated['status'] === 'completed') ? 100 : min($validated['progress'] ?? 0, 99);
+            if (isset($validated['status']) && $validated['status'] === 'completed') {
+                $validated['progress'] = 100;
             }
 
             $task->update($validated);
@@ -87,28 +82,21 @@ class TaskController extends Controller
             return response()->json($task->fresh()->load('category'));
 
         } catch (\Exception $e) {
-            Log::error('Task update failed: ' . $e->getMessage());
-            return response()->json(['error' => 'Task update failed'], 500);
+            Log::error('Task update error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to update task'], 500);
         }
     }
 
-    /**
-     * Delete a task
-     */
-    public function destroy($id)
+    public function destroy(Task $task)
     {
-        $task = Task::where('user_id', auth()->id())->find($id);
-
-        if (!$task) {
-            return response()->json(['error' => 'Task not found'], 404);
-        }
+        $this->authorize('delete', $task);
 
         try {
             $task->delete();
             return response()->json(null, 204);
         } catch (\Exception $e) {
-            Log::error('Task deletion failed: ' . $e->getMessage());
-            return response()->json(['error' => 'Task deletion failed'], 500);
+            Log::error('Task deletion error: ' . $e->getMessage());
+            return response()->json(['error' => 'Failed to delete task'], 500);
         }
     }
 }

@@ -25,29 +25,18 @@ Route::post('/login', [AuthController::class, 'login']);
 /* ==================== PROTECTED ROUTES ==================== */
 Route::middleware('auth:sanctum')->group(function () {
     /* ========== AUTHENTICATION ROUTES ========== */
-    Route::get('/user', [AuthController::class, 'user']); // Existing user endpoint
-    Route::post('/logout', [AuthController::class, 'logout']); // Existing logout
+    Route::get('/user', [AuthController::class, 'user']); // Get authenticated user
+    Route::post('/logout', [AuthController::class, 'logout']); // Logout
 
-    /* ========== TASK ROUTES (CRUD) ========== */
-    Route::prefix('tasks')->group(function () {
-        Route::get('/', [TaskController::class, 'index']);       // Get all tasks
-        Route::post('/', [TaskController::class, 'store']);      // Create task
-        Route::put('/{id}', [TaskController::class, 'update']);  // Update task
-        Route::delete('/{id}', [TaskController::class, 'destroy']); // Delete task
-    });
+    /* ========== TASK ROUTES ========== */
+    Route::apiResource('tasks', TaskController::class)->except(['create', 'edit']);
 
     /* ========== CATEGORY ROUTES ========== */
-    Route::get('/categories', [CategoryController::class, 'index']); // Get categories
+    Route::get('/categories', [CategoryController::class, 'index']); // Get all categories
 
     /* ========== USER PROFILE ROUTES ========== */
     Route::prefix('user')->group(function () {
-        Route::post('/avatar', [UserController::class, 'updateAvatar']);    // Update avatar
-        Route::post('/password', [UserController::class, 'changePassword']); // Change password
-    });
-
-    /* ========== OPTIONAL USER DATA ROUTE ========== */
-    // Keeping your existing optional route exactly as is
-    Route::get('/user-data', function (Request $request) {
-        return $request->user();
+        Route::post('/upload-avatar', [UserController::class, 'uploadAvatar']); // Update avatar
+        Route::post('/change-password', [UserController::class, 'changePassword']); // Change password
     });
 });

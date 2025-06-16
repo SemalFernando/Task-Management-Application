@@ -18,29 +18,36 @@ use App\Http\Controllers\UserController;
 |
 */
 
-// Public routes (no auth required)
+/* ==================== PUBLIC ROUTES ==================== */
+Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
-// Protected routes (require Sanctum token authentication)
+/* ==================== PROTECTED ROUTES ==================== */
 Route::middleware('auth:sanctum')->group(function () {
-    // Authentication
-    Route::post('/logout', [AuthController::class, 'logout']);
+    /* ========== AUTHENTICATION ROUTES ========== */
+    Route::get('/user', [AuthController::class, 'user']); // Existing user endpoint
+    Route::post('/logout', [AuthController::class, 'logout']); // Existing logout
 
-    // Tasks (full CRUD)
-    Route::get('/tasks', [TaskController::class, 'index']);
-    Route::post('/tasks', [TaskController::class, 'store']);
-    Route::put('/tasks/{id}', [TaskController::class, 'update']);
-    Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+    /* ========== TASK ROUTES (CRUD) ========== */
+    Route::prefix('tasks')->group(function () {
+        Route::get('/', [TaskController::class, 'index']);       // Get all tasks
+        Route::post('/', [TaskController::class, 'store']);      // Create task
+        Route::put('/{id}', [TaskController::class, 'update']);  // Update task
+        Route::delete('/{id}', [TaskController::class, 'destroy']); // Delete task
+    });
 
-    // Categories
-    Route::get('/categories', [CategoryController::class, 'index']);
+    /* ========== CATEGORY ROUTES ========== */
+    Route::get('/categories', [CategoryController::class, 'index']); // Get categories
 
-    // User Profile
-    Route::post('/user/avatar', [UserController::class, 'updateAvatar']);
-    Route::post('/user/password', [UserController::class, 'changePassword']);
+    /* ========== USER PROFILE ROUTES ========== */
+    Route::prefix('user')->group(function () {
+        Route::post('/avatar', [UserController::class, 'updateAvatar']);    // Update avatar
+        Route::post('/password', [UserController::class, 'changePassword']); // Change password
+    });
 
-    // Optional: Get authenticated user data
-    Route::get('/user', function (Request $request) {
+    /* ========== OPTIONAL USER DATA ROUTE ========== */
+    // Keeping your existing optional route exactly as is
+    Route::get('/user-data', function (Request $request) {
         return $request->user();
     });
 });

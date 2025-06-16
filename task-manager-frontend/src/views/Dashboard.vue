@@ -399,6 +399,7 @@
 <script>
 import api from '@/utils/api';
 import { mapState, mapActions } from 'vuex';
+import axios from 'axios';
 
 export default {
   name: 'Dashboard',
@@ -625,23 +626,47 @@ export default {
     },
     
     async changePassword() {
-      if (this.password.new !== this.password.confirm) {
-        this.error = 'New passwords do not match';
-        return;
-      }
+    this.passwordChanging = true;
+    
+    try {
+      const response = await axios.post(
+        'http://localhost:8000/api/user/change-password', // Updated to match your route
+        {
+          current_password: this.password.current,
+          new_password: this.password.new,
+          new_password_confirmation: this.password.confirm
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      // Reset form and show success
+      this.password = { current: '', new: '', confirm: '' };
+      this.showProfile = false;
+      alert('Password changed successfully!');
       
-      try {
-        this.passwordChanging = true;
-        await api.post('/change-password', this.password);
-        this.showProfile = false;
-        this.password = { current: '', new: '', confirm: '' };
-        this.$toast.success('Password changed successfully');
-      } catch (error) {
-        this.error = this.handleApiError(error, 'Failed to change password');
-      } finally {
-        this.passwordChanging = false;
+    } catch (error) {
+      if (error.response) {
+        // Handle validation errors
+        if (error.response.status === 422) {
+          alert(error.response.data.message || 'Validation failed');
+        } else if (error.response.status === 401) {
+          alert('Current password is incorrect');
+        } else {
+          alert('Error changing password');
+        }
+      } else {
+        alert('Network error - please try again');
       }
-    },
+      console.error('Password change error:', error);
+    } finally {
+      this.passwordChanging = false;
+    }
+  },
     
     handleApiError(error, defaultMessage) {
       const message = error.response?.data?.message || defaultMessage;
